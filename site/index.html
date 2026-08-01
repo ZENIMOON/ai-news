@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>AIニュース</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📰</text></svg>">
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --text: #1c2128;
+    --muted: #57606a;
+    --border: #d8dee4;
+    --accent: #0969da;
+    --red: #d1242f;
+    --yellow: #bf8700;
+    --green: #1a7f37;
+    --code-bg: #eff1f3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --border: #30363d;
+      --accent: #58a6ff;
+      --red: #ff7b72;
+      --yellow: #d29922;
+      --green: #3fb950;
+      --code-bg: #21262d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Segoe UI", sans-serif;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+  }
+  .header-inner {
+    max-width: 760px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .header-inner h1 {
+    font-size: 18px;
+    margin: 0;
+    flex: 1;
+    white-space: nowrap;
+  }
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .nav button, .nav select {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .nav button:disabled { opacity: 0.35; cursor: default; }
+  .nav button:not(:disabled):active { background: var(--border); }
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+  .status {
+    text-align: center;
+    color: var(--muted);
+    padding: 48px 0;
+    font-size: 14px;
+  }
+  article h1 {
+    font-size: 22px;
+    margin: 8px 0 4px;
+  }
+  article h2 {
+    font-size: 17px;
+    margin: 28px 0 12px;
+    padding: 8px 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 5px solid var(--accent);
+    border-radius: 8px;
+  }
+  article h2.sec-red    { border-left-color: var(--red); }
+  article h2.sec-yellow { border-left-color: var(--yellow); }
+  article h2.sec-green  { border-left-color: var(--green); }
+  article h3 {
+    font-size: 16px;
+    margin: 0 0 8px;
+  }
+  .item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  article ul { margin: 0; padding-left: 20px; }
+  article li { margin: 4px 0; font-size: 14.5px; }
+  article a {
+    color: var(--accent);
+    text-decoration: none;
+    word-break: break-all;
+  }
+  article a:hover { text-decoration: underline; }
+  article blockquote {
+    margin: 12px 0;
+    padding: 10px 14px;
+    border-left: 4px solid var(--border);
+    background: var(--card);
+    border-radius: 0 8px 8px 0;
+    color: var(--muted);
+    font-size: 13.5px;
+  }
+  article blockquote p { margin: 4px 0; }
+  article code {
+    background: var(--code-bg);
+    border-radius: 5px;
+    padding: 1px 6px;
+    font-size: 13px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  article pre {
+    background: var(--code-bg);
+    border-radius: 8px;
+    padding: 12px;
+    overflow-x: auto;
+  }
+  article pre code { background: none; padding: 0; }
+  article p { margin: 8px 0; font-size: 14.5px; }
+  footer {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 24px 16px 40px;
+    color: var(--muted);
+    font-size: 12.5px;
+    text-align: center;
+  }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <h1>📰 AIニュース</h1>
+    <div class="nav">
+      <button id="prev" title="前の日">←</button>
+      <select id="datePicker"></select>
+      <button id="next" title="次の日">→</button>
+    </div>
+  </div>
+</header>
+<main>
+  <div id="content"><div class="status">読み込み中…</div></div>
+</main>
+<footer>
+  毎朝9時に自動更新 ·
+  <a href="https://github.com/ZENIMOON/ai-news" target="_blank" rel="noopener">GitHub</a>
+</footer>
+<script>
+const OWNER = "ZENIMOON";
+const REPO = "ai-news";
+const API_LIST = `https://api.github.com/repos/${OWNER}/${REPO}/contents/daily?ref=main`;
+const RAW_BASE = `https://raw.githubusercontent.com/${OWNER}/${REPO}/main/daily/`;
+
+const contentEl = document.getElementById("content");
+const pickerEl = document.getElementById("datePicker");
+const prevBtn = document.getElementById("prev");
+const nextBtn = document.getElementById("next");
+
+let dates = []; // desc order (newest first)
+let current = 0;
+
+function esc(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function inline(s) {
+  // apply inline markdown to an already-escaped string
+  s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s = s.replace(/(^|[^"'>=\]])(https?:\/\/[^\s<),、]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+  return s;
+}
+
+function renderMarkdown(md) {
+  const lines = md.split("\n");
+  let html = "";
+  let listOpen = false, quoteOpen = false, codeOpen = false, itemOpen = false;
+  const closeList = () => { if (listOpen) { html += "</ul>"; listOpen = false; } };
+  const closeQuote = () => { if (quoteOpen) { html += "</blockquote>"; quoteOpen = false; } };
+  const closeItem = () => { closeList(); if (itemOpen) { html += "</div>"; itemOpen = false; } };
+
+  for (const raw of lines) {
+    const line = raw.replace(/\s+$/, "");
+    if (line.startsWith("```")) {
+      closeList(); closeQuote();
+      html += codeOpen ? "</code></pre>" : "<pre><code>";
+      codeOpen = !codeOpen;
+      continue;
+    }
+    if (codeOpen) { html += esc(raw) + "\n"; continue; }
+
+    if (/^### /.test(line)) {
+      closeItem(); closeQuote();
+      html += '<div class="item"><h3>' + inline(esc(line.slice(4))) + "</h3>";
+      itemOpen = true;
+    } else if (/^## /.test(line)) {
+      closeItem(); closeQuote();
+      const t = line.slice(3);
+      let cls = "";
+      if (t.includes("\u{1F534}")) cls = "sec-red";
+      else if (t.includes("\u{1F7E1}")) cls = "sec-yellow";
+      else if (t.includes("\u{1F7E2}")) cls = "sec-green";
+      html += `<h2 class="${cls}">` + inline(esc(t)) + "</h2>";
+    } else if (/^# /.test(line)) {
+      closeItem(); closeQuote();
+      html += "<h1>" + inline(esc(line.slice(2))) + "</h1>";
+    } else if (/^> ?/.test(line)) {
+      closeList();
+      if (!quoteOpen) { html += "<blockquote>"; quoteOpen = true; }
+      html += "<p>" + inline(esc(line.replace(/^> ?/, ""))) + "</p>";
+    } else if (/^- /.test(line)) {
+      closeQuote();
+      if (!listOpen) { html += "<ul>"; listOpen = true; }
+      html += "<li>" + inline(esc(line.slice(2))) + "</li>";
+    } else if (line.trim() === "") {
+      closeList(); closeQuote();
+    } else {
+      closeList(); closeQuote();
+      html += "<p>" + inline(esc(line)) + "</p>";
+    }
+  }
+  if (codeOpen) html += "</code></pre>";
+  closeItem(); closeQuote();
+  return html;
+}
+
+function updateNav() {
+  pickerEl.value = dates[current];
+  prevBtn.disabled = current >= dates.length - 1; // older
+  nextBtn.disabled = current <= 0; // newer
+}
+
+async function show(idx) {
+  current = idx;
+  updateNav();
+  contentEl.innerHTML = '<div class="status">読み込み中…</div>';
+  try {
+    const res = await fetch(RAW_BASE + dates[idx] + ".md", { cache: "no-cache" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const md = await res.text();
+    contentEl.innerHTML = "<article>" + renderMarkdown(md) + "</article>";
+    window.scrollTo(0, 0);
+  } catch (e) {
+    contentEl.innerHTML = '<div class="status">記事を読み込めませんでした（' + esc(String(e.message)) + '）</div>';
+  }
+}
+
+async function init() {
+  try {
+    const res = await fetch(API_LIST, { cache: "no-cache" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const files = await res.json();
+    dates = files
+      .map(f => f.name)
+      .filter(n => /^\d{4}-\d{2}-\d{2}\.md$/.test(n))
+      .map(n => n.replace(/\.md$/, ""))
+      .sort()
+      .reverse();
+    if (dates.length === 0) {
+      contentEl.innerHTML = '<div class="status">まだ記事がありません。明朝9時の配信をお待ちください。</div>';
+      return;
+    }
+    pickerEl.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join("");
+    await show(0);
+  } catch (e) {
+    contentEl.innerHTML = '<div class="status">記事一覧を取得できませんでした（' + esc(String(e.message)) + '）。時間をおいて再読み込みしてください。</div>';
+  }
+}
+
+prevBtn.addEventListener("click", () => { if (current < dates.length - 1) show(current + 1); });
+nextBtn.addEventListener("click", () => { if (current > 0) show(current - 1); });
+pickerEl.addEventListener("change", () => show(dates.indexOf(pickerEl.value)));
+
+init();
+</script>
+</body>
+</html>
