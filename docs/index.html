@@ -81,6 +81,11 @@
   }
   .nav button:disabled { opacity: 0.35; cursor: default; }
   .nav button:not(:disabled):active { background: var(--border); }
+  #radio.playing {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
   main {
     max-width: 760px;
     margin: 0 auto;
@@ -168,6 +173,7 @@
   <div class="header-inner">
     <h1>📰 AIニュース</h1>
     <div class="nav">
+      <button id="radio" title="ラジオ再生" disabled>📻 再生</button>
       <button id="prev" title="前の日">←</button>
       <select id="datePicker"></select>
       <button id="next" title="次の日">→</button>
@@ -194,6 +200,7 @@ const nextBtn = document.getElementById("next");
 
 let dates = []; // desc order (newest first)
 let current = 0;
+let currentMd = ""; // markdown of the displayed day (for radio)
 
 function esc(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -270,17 +277,180 @@ function updateNav() {
 async function show(idx) {
   current = idx;
   updateNav();
+  stopRadio();
+  radioBtn.disabled = true;
   contentEl.innerHTML = '<div class="status">読み込み中…</div>';
   try {
     const res = await fetch(RAW_BASE + dates[idx] + ".md", { cache: "no-cache" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const md = await res.text();
+    currentMd = md;
     contentEl.innerHTML = "<article>" + renderMarkdown(md) + "</article>";
+    radioBtn.disabled = false;
     window.scrollTo(0, 0);
   } catch (e) {
     contentEl.innerHTML = '<div class="status">記事を読み込めませんでした（' + esc(String(e.message)) + '）</div>';
   }
 }
+
+// ---------------- 📻 ラジオ（読み上げ + BGM） ----------------
+const radioBtn = document.getElementById("radio");
+let radioPlaying = false;
+let audioCtx = null, bgmGain = null, bgmTimer = null;
+
+const CHORDS = [ // lo-fi風の静かな循環コード（周波数Hz）
+  [130.81, 164.81, 196.00, 246.94], // Cmaj7
+  [110.00, 130.81, 164.81, 196.00], // Am7
+  [87.31, 130.81, 174.61, 220.00],  // Fmaj7
+  [98.00, 123.47, 146.83, 196.00],  // G
+];
+
+function startBGM() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = 800;
+  bgmGain = audioCtx.createGain();
+  bgmGain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+  bgmGain.gain.exponentialRampToValueAtTime(0.045, audioCtx.currentTime + 2);
+  bgmGain.connect(filter);
+  filter.connect(audioCtx.destination);
+
+  let step = 0;
+  const CHORD_SEC = 4.8;
+  const playChord = () => {
+    if (!audioCtx) return;
+    const t = audioCtx.currentTime;
+    for (const freq of CHORDS[step % CHORDS.length]) {
+      const osc = audioCtx.createOscillator();
+      const env = audioCtx.createGain();
+      osc.type = "triangle";
+      osc.frequency.value = freq;
+      osc.detune.value = (Math.random() - 0.5) * 8; // わずかな揺らぎ
+      env.gain.setValueAtTime(0.0001, t);
+      env.gain.exponentialRampToValueAtTime(0.25, t + 1.2);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + CHORD_SEC + 0.4);
+      osc.connect(env);
+      env.connect(bgmGain);
+      osc.start(t);
+      osc.stop(t + CHORD_SEC + 0.5);
+    }
+    step++;
+  };
+  playChord();
+  bgmTimer = setInterval(playChord, CHORD_SEC * 1000);
+}
+
+function stopBGM() {
+  if (bgmTimer) { clearInterval(bgmTimer); bgmTimer = null; }
+  if (audioCtx) {
+    const ctx = audioCtx, gain = bgmGain;
+    audioCtx = null; bgmGain = null;
+    try {
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1);
+    } catch (e) {}
+    setTimeout(() => ctx.close().catch(() => {}), 1200);
+  }
+}
+
+function cleanForSpeech(s) {
+  return s
+    .replace(/https?:\/\/[^\s),、]+/g, "")           // URL除去
+    .replace(/\*\*([^*]+)\*\*/g, "$1")               // 太字記法
+    .replace(/`([^`]+)`/g, "$1")                     // コード記法
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")         // リンク記法
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/gu, "") // 絵文字
+    .replace(/[×✕]/g, "と")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildSpeechScript(md, dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const parts = [`AIニュース、${y}年${m}月${d}日号です。`];
+  let sectionCount = 0;
+  let inCode = false;
+  for (const raw of md.split("\n")) {
+    const line = raw.trim();
+    if (line.startsWith("```")) { inCode = !inCode; continue; }
+    if (inCode || line === "" || line.startsWith("# ") || line.startsWith(">")) continue;
+    if (line.startsWith("## ")) {
+      const name = cleanForSpeech(line.slice(3));
+      parts.push((sectionCount === 0 ? "まずは、" : "続いて、") + name + "の話題です。");
+      sectionCount++;
+    } else if (line.startsWith("### ")) {
+      parts.push(cleanForSpeech(line.slice(4)) + "。");
+    } else if (line.startsWith("- ")) {
+      const item = line.slice(2);
+      if (/^情報源/.test(item)) continue;
+      let t = cleanForSpeech(item.replace(/^要約[:：]\s*/, ""));
+      if (/^\*?\*?活用ポイント/.test(item)) {
+        t = "活用ポイント。" + cleanForSpeech(item.replace(/^\*\*活用ポイント[:：]?\*\*\s*/, ""));
+      }
+      if (t) parts.push(t);
+    } else {
+      const t = cleanForSpeech(line);
+      if (t) parts.push(t);
+    }
+  }
+  parts.push("以上、本日のAIニュースでした。");
+  return parts.filter(p => p.length > 0);
+}
+
+function pickVoice() {
+  const voices = speechSynthesis.getVoices();
+  return voices.find(v => /Google.*日本語/.test(v.name))
+      || voices.find(v => v.lang && v.lang.startsWith("ja") && /Kyoko|O-?ren|Otoya/i.test(v.name))
+      || voices.find(v => v.lang && v.lang.startsWith("ja"))
+      || null;
+}
+
+function speakParts(parts, i) {
+  if (!radioPlaying || i >= parts.length) { stopRadio(); return; }
+  const u = new SpeechSynthesisUtterance(parts[i]);
+  const v = pickVoice();
+  if (v) u.voice = v;
+  u.lang = "ja-JP";
+  u.rate = 1.05;
+  u.onend = () => speakParts(parts, i + 1);
+  u.onerror = () => speakParts(parts, i + 1);
+  speechSynthesis.speak(u);
+}
+
+function startRadio() {
+  if (!currentMd) return;
+  radioPlaying = true;
+  radioBtn.textContent = "⏹ 停止";
+  radioBtn.classList.add("playing");
+  startBGM();
+  speechSynthesis.cancel();
+  // 音声リストの読み込みが遅れる環境（iOS等）への対応
+  const begin = () => speakParts(buildSpeechScript(currentMd, dates[current]), 0);
+  if (speechSynthesis.getVoices().length === 0) {
+    let started = false;
+    speechSynthesis.addEventListener("voiceschanged", () => {
+      if (!started && radioPlaying) { started = true; begin(); }
+    }, { once: true });
+    setTimeout(() => { if (!started && radioPlaying) { started = true; begin(); } }, 300);
+  } else {
+    begin();
+  }
+}
+
+function stopRadio() {
+  if (!radioPlaying && !audioCtx) return;
+  radioPlaying = false;
+  speechSynthesis.cancel();
+  stopBGM();
+  radioBtn.textContent = "📻 再生";
+  radioBtn.classList.remove("playing");
+}
+
+radioBtn.addEventListener("click", () => {
+  if (radioPlaying) stopRadio();
+  else startRadio();
+});
+window.addEventListener("pagehide", stopRadio);
 
 async function init() {
   try {
