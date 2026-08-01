@@ -21,7 +21,7 @@ jobs:
 
       - name: Generate missing audio
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.CHATGPT }}
         run: |
           if [ -z "$OPENAI_API_KEY" ]; then
             echo "::warning::OPENAI_API_KEY secret is not set — skipping audio generation"
