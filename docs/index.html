@@ -297,6 +297,7 @@ async function show(idx) {
 const radioBtn = document.getElementById("radio");
 let radioPlaying = false;
 let audioCtx = null, bgmGain = null, bgmTimer = null;
+let voiceAudio = null; // 事前生成mp3の再生用
 
 const CHORDS = [ // lo-fi風の静かな循環コード（周波数Hz）
   [130.81, 164.81, 196.00, 246.94], // Cmaj7
@@ -417,12 +418,8 @@ function speakParts(parts, i) {
   speechSynthesis.speak(u);
 }
 
-function startRadio() {
-  if (!currentMd) return;
-  radioPlaying = true;
-  radioBtn.textContent = "⏹ 停止";
-  radioBtn.classList.add("playing");
-  startBGM();
+function speakFallback() {
+  if (!radioPlaying) return;
   speechSynthesis.cancel();
   // 音声リストの読み込みが遅れる環境（iOS等）への対応
   const begin = () => speakParts(buildSpeechScript(currentMd, dates[current]), 0);
@@ -437,9 +434,34 @@ function startRadio() {
   }
 }
 
+function startRadio() {
+  if (!currentMd) return;
+  radioPlaying = true;
+  radioBtn.textContent = "⏹ 停止";
+  radioBtn.classList.add("playing");
+  startBGM();
+  // 事前生成の高音質mp3（OpenAI TTS）があれば優先。なければブラウザ音声で読み上げ。
+  let fellBack = false;
+  const fallback = () => {
+    if (fellBack || !radioPlaying) return;
+    fellBack = true;
+    voiceAudio = null;
+    speakFallback();
+  };
+  voiceAudio = new Audio("audio/" + dates[current] + ".mp3");
+  voiceAudio.onended = () => stopRadio();
+  voiceAudio.onerror = fallback;
+  voiceAudio.play().catch(fallback);
+}
+
 function stopRadio() {
   if (!radioPlaying && !audioCtx) return;
   radioPlaying = false;
+  if (voiceAudio) {
+    voiceAudio.onerror = null;
+    voiceAudio.pause();
+    voiceAudio = null;
+  }
   speechSynthesis.cancel();
   stopBGM();
   radioBtn.textContent = "📻 再生";

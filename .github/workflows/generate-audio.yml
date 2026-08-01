@@ -1,0 +1,37 @@
+name: Generate audio
+
+on:
+  push:
+    branches: [main]
+    paths: ["daily/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: generate-audio
+  cancel-in-progress: false
+
+jobs:
+  tts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate missing audio
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::warning::OPENAI_API_KEY secret is not set — skipping audio generation"
+            exit 0
+          fi
+          python3 scripts/generate_audio.py
+
+      - name: Commit audio
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/audio
+          git diff --cached --quiet || { git commit -m "Generate audio [skip ci]" && git push; }
