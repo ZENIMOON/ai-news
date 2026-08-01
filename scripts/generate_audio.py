@@ -4,6 +4,7 @@ import glob
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import time
@@ -132,17 +133,17 @@ def main():
                 tts(ch, seg)
                 segs.append(seg)
             if len(segs) == 1:
-                cmd = ["ffmpeg", "-y", "-i", segs[0]]
+                shutil.copy(segs[0], out)
             else:
                 lst = os.path.join(tmp, "list.txt")
                 with open(lst, "w") as f:
                     f.writelines(f"file '{p}'\n" for p in segs)
-                cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", lst]
-            subprocess.run(
-                cmd + ["-c:a", "libmp3lame", "-b:a", "96k", out],
-                check=True,
-                capture_output=True,
-            )
+                subprocess.run(
+                    ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", lst,
+                     "-c:a", "libmp3lame", "-b:a", "96k", out],
+                    check=True,
+                    capture_output=True,
+                )
         print("generated", out)
         generated += 1
         if limit and generated >= limit:
