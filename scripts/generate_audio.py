@@ -6,6 +6,8 @@ import os
 import re
 import subprocess
 import tempfile
+import time
+import urllib.error
 import urllib.request
 
 MODEL = os.environ.get("TTS_MODEL", "gpt-4o-mini-tts")
@@ -85,21 +87,37 @@ def tts(text, out_path):
             "response_format": "mp3",
         }
     ).encode()
-    req = urllib.request.Request(
-        "https://api.openai.com/v1/audio/speech",
-        data=body,
-        headers={
-            "Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}",
-            "Content-Type": "application/json",
-        },
-    )
-    with urllib.request.urlopen(req) as r, open(out_path, "wb") as f:
-        f.write(r.read())
+    for attempt in range(5):
+        req = urllib.request.Request(
+            "https://api.openai.com/v1/audio/speech",
+            data=body,
+            headers={
+                "Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}",
+                "Content-Type": "application/json",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req) as r, open(out_path, "wb") as f:
+                f.write(r.read())
+            return
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode(errors="replace")
+            print(f"TTS HTTP {e.code}: {detail[:500]}")
+            # レート制限は待って再試行。クレジット不足(insufficient_quota)は再試行しても無駄なので即中断。
+            if e.code == 429 and "insufficient_quota" not in detail and attempt < 4:
+                wait = 20 * (attempt + 1)
+                print(f"rate limited, retrying in {wait}s...")
+                time.sleep(wait)
+                continue
+            raise
 
 
 def main():
+    limit = int(os.environ.get("LIMIT", "0"))  # 0 = 無制限
+    generated = 0
     os.makedirs("docs/audio", exist_ok=True)
-    for md_path in sorted(glob.glob("daily/*.md")):
+    # 新しい日付を優先して生成する
+    for md_path in sorted(glob.glob("daily/*.md"), reverse=True):
         date_str = os.path.basename(md_path)[:-3]
         out = f"docs/audio/{date_str}.mp3"
         if os.path.exists(out):
@@ -126,6 +144,11 @@ def main():
                 capture_output=True,
             )
         print("generated", out)
+        generated += 1
+        if limit and generated >= limit:
+            print(f"limit {limit} reached, stopping")
+            break
+        time.sleep(3)  # レート制限対策の小休止
 
 
 if __name__ == "__main__":

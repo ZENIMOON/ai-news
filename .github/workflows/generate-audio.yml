@@ -5,6 +5,11 @@ on:
     branches: [main]
     paths: ["daily/**"]
   workflow_dispatch:
+    inputs:
+      limit:
+        description: "生成する日数の上限（0=無制限、新しい日付から優先）"
+        required: false
+        default: "0"
 
 permissions:
   contents: write
@@ -22,6 +27,7 @@ jobs:
       - name: Generate missing audio
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.CHATGPT }}
+          LIMIT: ${{ inputs.limit || '0' }}
         run: |
           if [ -z "$OPENAI_API_KEY" ]; then
             echo "::warning::OPENAI_API_KEY secret is not set — skipping audio generation"
