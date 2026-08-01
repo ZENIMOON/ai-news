@@ -298,6 +298,21 @@ const radioBtn = document.getElementById("radio");
 let radioPlaying = false;
 let audioCtx = null, bgmGain = null, bgmTimer = null;
 let voiceAudio = null; // 事前生成mp3の再生用
+let bgmAudio = null;   // ユーザー配置のBGMファイル再生用
+let bgmTracks = [];    // docs/bgm/ 内の曲一覧（初期化時に取得）
+const BGM_VOLUME = 0.15;
+
+async function loadBgmTracks() {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/docs/bgm?ref=main`, { cache: "no-cache" });
+    if (!res.ok) return;
+    const files = await res.json();
+    bgmTracks = files
+      .map(f => f.name)
+      .filter(n => /\.(mp3|m4a|ogg|wav)$/i.test(n))
+      .map(n => "bgm/" + n);
+  } catch (e) {}
+}
 
 const CHORDS = [ // lo-fi風の静かな循環コード（周波数Hz）
   [130.81, 164.81, 196.00, 246.94], // Cmaj7
@@ -307,6 +322,19 @@ const CHORDS = [ // lo-fi風の静かな循環コード（周波数Hz）
 ];
 
 function startBGM() {
+  // ユーザーがbgm/フォルダに置いた曲があればそれを小音量ループ再生
+  if (bgmTracks.length > 0) {
+    const track = bgmTracks[Math.floor(Math.random() * bgmTracks.length)];
+    bgmAudio = new Audio(track);
+    bgmAudio.loop = true;
+    bgmAudio.volume = BGM_VOLUME;
+    bgmAudio.play().catch(() => { bgmAudio = null; startSynthBGM(); });
+    return;
+  }
+  startSynthBGM();
+}
+
+function startSynthBGM() {
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   const filter = audioCtx.createBiquadFilter();
   filter.type = "lowpass";
@@ -343,6 +371,15 @@ function startBGM() {
 }
 
 function stopBGM() {
+  if (bgmAudio) {
+    const a = bgmAudio;
+    bgmAudio = null;
+    // 1秒かけてフェードアウト
+    const fade = setInterval(() => {
+      a.volume = Math.max(0, a.volume - BGM_VOLUME / 10);
+      if (a.volume <= 0) { clearInterval(fade); a.pause(); }
+    }, 100);
+  }
   if (bgmTimer) { clearInterval(bgmTimer); bgmTimer = null; }
   if (audioCtx) {
     const ctx = audioCtx, gain = bgmGain;
@@ -490,6 +527,7 @@ async function init() {
       return;
     }
     pickerEl.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join("");
+    loadBgmTracks(); // 裏で取得（📻再生までに揃っていればOK）
     await show(0);
   } catch (e) {
     contentEl.innerHTML = '<div class="status">記事一覧を取得できませんでした（' + esc(String(e.message)) + '）。時間をおいて再読み込みしてください。</div>';
