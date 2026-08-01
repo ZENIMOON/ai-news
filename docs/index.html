@@ -310,7 +310,7 @@ async function loadBgmTracks() {
     bgmTracks = files
       .map(f => f.name)
       .filter(n => /\.(mp3|m4a|ogg|wav)$/i.test(n))
-      .map(n => "bgm/" + n);
+      .map(n => "bgm/" + encodeURIComponent(n));
   } catch (e) {}
 }
 
